@@ -1,0 +1,99 @@
+##########################################################################################
+##########################################################################################
+###   Mapping & SNP calling
+##########################################################################################
+##########################################################################################
+
+module load GATK/3.8-0
+module load tabix
+
+set -e
+Cores=8
+
+##dirs
+ref="/path/to/reference.fasta"
+GATK="/gatk"
+MAPDIR="/bwa/path"
+
+
+r1=$1
+r2=$2
+RGID="sample_tag"
+SM="sample_tag"
+LB="LB_name"
+outfile="sample_tag"
+
+
+bwa mem -t $Cores -M  $ref $r1 $r2 > $outfile.sam
+samtools view -b -u -F 4 -q 20 -@ $Cores $outfile.sam | samtools sort -@ $Cores - > $outfile.sorted.bam
+rm $outfile.sam
+
+#optional: java -jar picard.jar AddOrReplaceReadGroups I=$outfile.sorted.bam O=$outfile.RGID.bam RGID=$RGID RGLB=$LB RGPL=ILLUMINA RGPU=1 RGSM=$SM CREATE_INDEX=true 
+java -jar picard.jar CollectAlignmentSummaryMetrics R=$ref I=$outfile.RGID.bam O=$outfile.alignment_metrics.txt
+java -Xmx32g -jar picard.jar MarkDuplicates INPUT=$outfile.RGID.bam OUTPUT=$outfile.picard_dedup.bam METRICS_FILE=$outfile.picard_dup_metrics.txt CREATE_INDEX=true
+
+rm $outfile.sorted.bam
+rm $outfile.RGID.bam
+rm $outfile.RGID.bai 
+
+
+file=$outfile.picard_dedup.bam
+ID="sample_tag"
+
+java -jar $GATK_HOME/GenomeAnalysisTK.jar -T RealignerTargetCreator -R $ref -I $MAPDIR/$file -o ${ID}_realignment_targets.list 
+java -jar $GATK_HOME/GenomeAnalysisTK.jar -T IndelRealigner -R $ref -I $MAPDIR/$file -targetIntervals ${ID}_realignment_targets.list -o ${ID}_realigned_reads.bam 
+java -jar $GATK_HOME/GenomeAnalysisTK.jar -T HaplotypeCaller -R $ref -I ${ID}_realigned_reads.bam -ERC GVCF -nct 15 -o ${ID}_raw_variants.g.vcf
+
+rm ${ID}_realigned_reads.bam
+
+bgzip ${ID}_raw_variants.g.vcf
+tabix -p vcf ${ID}_raw_variants.g.vcf.gz
+
+
+### combine all (combining raw variants in batches)
+java -jar $GATK_HOME/GenomeAnalysisTK.jar -T CombineGVCFs -R $ref -o batch1_combined.g.vcf.gz \
+  --variant sample1_raw_variants.g.vcf.gz \
+  --variant sample2_raw_variants.g.vcf.gz \
+  ...
+  
+  
+### joint calling
+
+java -jar $GATK_HOME/GenomeAnalysisTK.jar -T GenotypeGVCFs -R $ref -nt 15 -o Ptremula_raw_variants.vcf.gz \
+  --variant batch1_combined.g.vcf.gz \
+  --variant batch2_combined.g.vcf.gz \
+ ...
+
+
+## snp filtration and liftover
+
+java -jar $GATK_HOME/GenomeAnalysisTK.jar -T SelectVariants -R $ref -V Ptremula_raw_variants.vcf.gz -selectType SNP -nt 5 -o Ptremula_SNPs.vcf.gz
+
+
+java -jar $GATK_HOME/GenomeAnalysisTK.jar -T VariantFiltration -R $ref \
+  -V ${outprefix}_SNPs.vcf.gz \
+  --filterExpression 'QD < 2.0' \
+  --filterName "QD" \
+  --filterExpression 'FS > 60.0' \
+  --filterName "FS" \
+  --filterExpression 'MQ < 40.0' \
+  --filterName "MQ" \
+  --filterExpression 'ReadPosRankSum < -8.0' \
+  --filterName "ReadPosRankSum" \
+  --filterExpression 'SOR > 3.0' \
+  --filterName "SOR" \
+  --filterExpression 'MQRankSum < -12.5' \
+  --filterName "MQRankSum" \
+  -o Ptremula_filteredSNPs.vcf.gz
+
+tabix -p vcf Ptremula_filteredSNPs.vcf.gz
+
+java -jar $GATK_HOME/GenomeAnalysisTK.jar -T SelectVariants -R $ref -V Ptremula_filteredSNPs.vcf.gz -nt 4 -ef -o Ptremula_PASS_SNPs.vcf.gz
+
+## Liftover to chromosomes (aspen v2.0)
+
+java -Xmx24g -jar picard.jar LiftoverVcf I=Ptremula_PASS_SNPs.vcf.gz O=Ptremula_liftedover.vcf.gz CHAIN=${map}/F1_translated.chain REJECT=rejected_variants.vcf.gz R=${map}/Potra02_Pseudomolecules.fa MAX_RECORDS_IN_RAM=100000
+
+
+
+#########################################

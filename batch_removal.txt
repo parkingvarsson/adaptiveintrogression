@@ -1,0 +1,97 @@
+##########################################################################################
+##########################################################################################
+## Batch removal in SwAsp collection: prepare GL files
+##########################################################################################
+##########################################################################################
+
+vcftools --gzvcf SwAsp_biallelic.vcf.gz --BEAGLE-PL --chr ${chr} --out ${chr}
+
+#### ${chr}.BEAGLE.PL file format required for downstream filtering:
+marker  alleleA alleleB SWASP_002       SWASP_002       SWASP_002       SWASP_006       SWASP_006       SWASP_006       
+chrN:posX        A       T       1       0.001   1.99526e-41     1       0.001   1e-45   
+chrN:posY        T       C       1       0.0501187       2.51189e-37     1       0.001   1e-45   
+...
+####
+
+cut -f1 ${chr}.BEAGLE.PL > ${chr}_marker.txt 
+
+awk '{for(i=4;i<=NF;i+=3){printf "%s ",$i;} print ""}' ${chr}.BEAGLE.PL > ${chr}_major_major.PL
+paste ${chr}_marker.txt ${chr}_major_major.PL > ${chr}_tmp
+mv ${chr}_tmp ${chr}_major_major.PL
+sed -i 's/\s/\t/g' ${chr}_major_major.PL
+
+awk '{for(i=5;i<=NF;i+=3){printf "%s ",$i;} print ""}' ${chr}.BEAGLE.PL > ${chr}_minor_major.PL 
+paste ${chr}_marker.txt ${chr}_minor_major.PL > ${chr}_tmp
+mv ${chr}_tmp ${chr}_minor_major.PL
+sed -i 's/\s/\t/g' ${chr}_minor_major.PL
+
+awk '{for(i=6;i<=NF;i+=3){printf "%s ",$i;} print ""}' ${chr}.BEAGLE.PL > ${chr}_minor_minor.PL
+paste ${chr}_marker.txt ${chr}_minor_minor.PL > ${chr}_tmp
+mv ${chr}_tmp ${chr}_minor_minor.PL
+sed -i 's/\s/\t/g' ${chr}_minor_minor.PL
+
+gzip ${chr}.BEAGLE.PL
+
+Rscript batch_removal.R $chr $GL
+
+##########################################################################################
+##########################################################################################
+# batch_removal.R: Rscript to calculate SNP contributions to each PC (requires 10cores)
+
+library(ggplot2)
+library(ggfortify)
+library(factoextra)
+library(FactoMineR)
+
+args<-commandArgs(trailingOnly = TRUE)
+chr=args[1]
+GL=args[2] ## can be minor_minor/major_major/minor_major
+
+tremula=read.table(paste(chr,"_",GL,"_clean.PL",sep=""), header=T, row.names= 1)
+ttremula=t(tremula)
+ttremula=as.data.frame(ttremula)
+res.pca=PCA(ttremula, ncp = 3, graph = FALSE)
+res.var <- get_pca_var(res.pca)
+
+
+tiff(filename = paste(chr,"_",GL,".tiff",sep=""), width = 1000, height =600, units = "px", pointsize = 12, compression = c("lzw"), bg = "white", res = NA)
+fviz_pca_ind(res.pca, geom.ind = "point")
+dev.off()
+tiff(filename = paste(chr,"_",GL,"_labels.tiff",sep=""), width = 1000, height =600, units = "px", pointsize = 12, compression = c("lzw"), bg = "white", res = NA)
+fviz_pca_ind(res.pca)
+dev.off()
+
+eig.val= get_eigenvalue(res.pca)
+eig1=eig.val[1,1]
+eig2=eig.val[2,1]
+Cu=(1/nrow(tremula))*100
+cutoff=((Cu*eig1)+(Cu*eig2))/(eig1+eig2)
+message("eig1, eig2, Cu, cutoff")
+message(eig1) 
+message(eig2) 
+message(Cu) 
+message(cutoff)
+var_contrib=res.var$contrib
+var_contrib=as.data.frame(var_contrib)
+
+var_contrib$PC1PC2=((var_contrib$Dim.1*eig1)+(var_contrib$Dim.2*eig2))/(eig1+eig2)
+
+write.table(var_contrib,file=paste(chr,"_",GL,"_allvarcontrib.tab",sep=""), sep="\t", quote = F)
+
+res.desc <- dimdesc(res.pca, axes = c(1,2), proba = 1)
+PC1<-res.desc$Dim.1$quanti
+PC2<-res.desc$Dim.2$quanti
+
+genomic_idx <- match(rownames(var_contrib), rownames(PC1))
+PC1_ordered <- PC1[genomic_idx,]
+PC1_ordered <- as.data.frame(PC1_ordered)
+var_contrib$pvalPC1<-PC1_ordered$p.value
+var_contrib$correlationPC1<-PC1_ordered$correlation
+
+genomic_idx <- match(rownames(var_contrib), rownames(PC2))
+PC2_ordered <- PC2[genomic_idx,]
+PC2_ordered <- as.data.frame(PC2_ordered)
+var_contrib$pvalPC2<-PC2_ordered$p.value
+var_contrib$correlationPC2<-PC2_ordered$correlation
+
+write.table(var_contrib,file=paste(chr,"_",GL,"_allPvalue.tab",sep=""), sep="\t", quote = F)

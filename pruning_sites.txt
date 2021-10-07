@@ -1,0 +1,134 @@
+########################################
+
+### filters per chr
+
+vcf="Ptremula_liftedover.vcf.gz" 
+chr="chrN"
+
+
+bcftools filter -r ${chr} -Oz -o ${chr}.vcf.gz --threads 5 $vcf 
+bcftools reheader -s rename.txt -o ${chr}_renamed.vcf.gz ${chr}.vcf.gz
+rm ${chr}.vcf.gz
+zgrep -v '##contig=<ID=Scaffold' ${chr}_renamed.vcf.gz > ${chr}.vcf.gz
+rm ${chr}_renamed.vcf.gz
+
+###DP filters up=X dwn=Y
+vcftools --gzvcf ${chr}.vcf.gz --out ${chr}_DP --min-meanDP Y --max-meanDP X --max-missing 0.7 --recode --recode-INFO-all 
+bgzip ${chr}_DP.recode.vcf
+tabix -p vcf ${chr}_DP.recode.vcf.gz
+
+bcftools annotate --set-id +'%CHROM\_%POS\_%REF\_%FIRST_ALT' --threads 5 -Oz -o ${chr}_annot.vcf.gz ${chr}_DP.recode.vcf.gz
+bcftools +fill-tags ${chr}_annot.vcf.gz -Oz -o ${chr}_DPfilters.vcf.gz
+
+rm ${chr}_DP.recode.vcf.gz*
+rm ${chr}_annot.vcf.gz
+
+bcftools view -Oz -o ${chr}_biallelic.vcf.gz --threads 2 -m2 -M2 -v snps ${chr}_DPfilters.vcf.gz
+
+
+## build a first PCA:
+
+plink --vcf ${chr}_biallelic.vcf.gz --chr ${chr} --indep-pairwise 100 10 0.2 --maf 0.01 --out ${chr}_CleanSites
+plink --vcf ${chr}_biallelic.vcf.gz --pca --out ${chr}_CleanSites --chr ${chr} --extract ${chr}_CleanSites.prune.in
+
+
+### identify and remove related samples
+
+plink --vcf ${chr}_biallelic.vcf.gz --genome gz --out ${chr}_CleanSites --extract ${chr}_CleanSites.prune.in
+
+Rscript RelatedSamples.R $chr
+
+
+	## RelatedSamples.R : creates a list of related samples to remove from vcf files
+
+	args<-commandArgs(trailingOnly = TRUE)
+	chr=args[1]
+	ibd <- read.table(paste(chr,"_CleanSites.genome.gz",sep=""), header=T, as.is=T)
+	exclusions = ibd[ ibd$PI_HAT > 0.4, c('FID1','IID1','FID2','IID2','PI_HAT')]
+	write.table( exclusions, file="related_samples_PHAT04.txt", col.names = F, row.names = F, quote = F )
+
+##########################################################################################
+##########################################################################################
+###### Pruning sites
+##########################################################################################
+##########################################################################################
+
+vcftools --gzvcf ${chr}_biallelic.vcf.gz --out ${chr}_IBD --remove RelatedSamples.txt --recode-INFO-all --recode
+bgzip ${chr}_IBD.recode.vcf
+tabix -p vcf ${chr}_IBD.recode.vcf.gz
+
+bcftools +fill-tags ${chr}_IBD.recode.vcf.gz -Oz -o ${chr}_IBD_tagged.vcf.gz #recalculate info fields
+
+rm ${chr}_IBD.recode.vcf.gz*
+tabix ${chr}_IBD_tagged.vcf.gz
+
+##Filter by excess of heterozygosity
+
+python extract_allele_stats.py ${chr}_IBD_tagged.vcf.gz ${chr}
+Rscript filters.R ${chr}_allele_stats.txt ${chr}
+cut -f1,2 ${chr}_remove_afterExcHetFDRFilter.tab > ${chr}_ExcHet_remove.pos
+
+vcftools --gzvcf ${chr}_IBD_tagged.vcf.gz --exclude-positions ${chr}_ExcHet_remove.pos --out ${chr}_IBD_ExHetFDR --recode --recode-INFO-all 
+
+bgzip ${chr}_IBD_ExHetFDR.recode.vcf
+tabix -p vcf ${chr}_IBD_ExHetFDR.recode.vcf.gz
+
+##################################
+####extract_allele_stats.py
+import pysam
+import sys
+
+
+Subset=sys.argv[1]
+outfile=sys.argv[2]
+vcf=pysam.VariantFile(Subset)
+out=open(outfile+"_allele_stats.txt","w")
+
+out.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format ("Chrom","Pos","Id","HWE","Excess_Het","Called_samples","Allele_frequency","Proportion_of_heterozygous","Alt_read_proprotion","Total_Het_DP"))
+
+for record in vcf.fetch():
+    Chrom=record.contig
+    Pos=record.pos
+    Id=record.id
+    HWE=record.info["HWE"][0]
+    Excess_Het=record.info["ExcHet"][0]
+    AF=record.info["AF"][0]
+    AC_Het=record.info["AC_Het"][0]
+    NS=record.info["NS"]
+    if len(record.info["AF"])==1:
+        if int(AC_Het)>0:
+            Het_prop=float(AC_Het)/float(NS)
+        else:
+            continue
+    else:
+        continue
+    Alt_read=0
+    Tot_read=0
+    for sample in record.samples.values():
+        if sample["DP"] !=0:
+            if sample["GT"] == (0,1):
+                Alt_read=Alt_read + int(sample["AD"][1])
+                Tot_read=Tot_read + int(sample["DP"])
+    if Tot_read >0:
+        Alt_read_prop= float(Alt_read)/float(Tot_read)
+        out.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format (Chrom, Pos, Id, HWE, Excess_Het, NS, AF, Het_prop, Alt_read_prop, Tot_read))
+
+##################################
+###### filters.R
+
+library("data.table")
+
+args<-commandArgs(trailingOnly = TRUE)
+message(args[1])
+
+df<-fread(args[1],head=T)
+chr=args[2]
+
+df$fdr_ExcHet=p.adjust(df$Excess_Het, method = "BH")
+delete<-subset(df,df$fdr_ExcHet<=0.01)
+write.table(delete, file=paste(chr,"_remove_afterExcHetFDRFilter.tab",sep=""), row.names = F, quote = F, sep="\t")
+
+ 
+###################################
+
+

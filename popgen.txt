@@ -1,0 +1,13 @@
+##########################################################################################
+##########################################################################################
+# popgen
+
+chr=$1
+
+python2.7 genomics_general/VCF_processing/parseVCF.py -i ${chr}.vcf.gz --skipMono | gzip > ${chr}.geno.gz
+
+python2.7 genomics_general/ABBABABAwindows.py -g ${chr}.geno.gz -f phased -o ${chr}.ABBABABA_P1latP2scandP3ru.w10m100s10.csv.gz -P1 latvia -P2 scand -P3 russia -O china --popsFile populations2.txt -w 10000 -m 100 -s 10000 --minData 0.5 --T 4 --addWindowID --writeFailedWindows
+
+python2.7 genomics_general/popgenWindows.py -w 10000 -m 100 -g ${chr}.geno.gz -o ${chr}_10KB_scand_lat_diversity.csv.gz -f phased -T 4 -p latvia -p russia -p scand -p china -p sws -p nws -p swc --popsFile populations2.txt --addWindowID --writeFailedWindows
+
+python2.7 genomics_general/popgenWindows.py -w 10000 -m 100 -g ${chr}.geno.gz -o ${chr}_10KB_allpops_diversity.csv.gz -f phased -T 4 -p CH -p ICE -p LV -p NOC -p NON -p NOS -p RU -p SWC -p SWN -p SWS -p UK --popsFile populations3.txt --addWindowID --writeFailedWindows

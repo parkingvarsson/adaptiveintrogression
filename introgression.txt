@@ -1,0 +1,186 @@
+##########################################################################################
+##########################################################################################
+####introgression BDF & elai
+##########################################################################################
+##########################################################################################
+
+library(dplyr)
+library(devtools)
+#Install PopGenome
+#install.packages("PopGenome")
+# Install the PopGenome package from github
+#install_github("pievos101/PopGenome")
+# Load the PopGenome package
+library(PopGenome)
+###
+
+args<-commandArgs(trailingOnly = TRUE)
+dwlim=args[1]
+uplim=args[2]
+
+
+for (i in 1:19){
+  if(i==1) { 
+    genome = readVCF("chr1.vcf.gz",10000,"chr1",1,53234430, include.unknown=TRUE)
+    end_pos=53234430
+    chr="chr1"
+  }
+  if(i==2) { 
+    genome = readVCF("chr2.vcf.gz",10000,"chr2",1,23394149, include.unknown=TRUE)
+    end_pos=23394149
+    chr="chr2"
+  }
+  if(i==3) { 
+    genome = readVCF("chr3.vcf.gz",10000,"chr3",1,22153688, include.unknown=TRUE)
+    end_pos=22153688
+    chr="chr3"
+  }
+  if(i==4) { 
+    genome = readVCF("chr4.vcf.gz",10000,"chr4",1,20714312, include.unknown=TRUE)
+    end_pos=20714312
+    chr="chr4"
+  }
+  if(i==5) { 
+    genome = readVCF("chr5.vcf.gz",10000,"chr5",1,21719336, include.unknown=TRUE)
+    end_pos=21719336
+    chr="chr5"
+  }
+  if(i==6) { 
+    genome = readVCF("chr6.vcf.gz",10000,"chr6",1,23866163, include.unknown=TRUE)
+    end_pos=23866163
+    chr="chr6"
+  }
+  if(i==7) { 
+    genome = readVCF("chr7.vcf.gz",10000,"chr7",1,13889780, include.unknown=TRUE)
+    end_pos=13889780
+    chr="chr7"
+  }
+  if(i==8) { 
+    genome = readVCF("chr8.vcf.gz",10000,"chr8",1,16928776, include.unknown=TRUE)
+    end_pos=16928776
+    chr="chr8"
+  }
+  if(i==9) { 
+    genome = readVCF("chr9.vcf.gz",10000,"chr9",1,11968568, include.unknown=TRUE)
+    end_pos=11968568
+    chr="chr9"
+  }
+  if(i==10) { 
+    genome = readVCF("chr10.vcf.gz",10000,"chr10",1,19889137, include.unknown=TRUE)
+    end_pos=19889137
+    chr="chr10"
+  }
+  if(i==11) { 
+    genome = readVCF("chr11.vcf.gz",10000,"chr11",1,16810303, include.unknown=TRUE)
+    end_pos=16810303
+    chr="chr11"
+  }
+  if(i==12) { 
+    genome = readVCF("chr12.vcf.gz",10000,"chr12",1,13637973, include.unknown=TRUE)
+    end_pos=13637973
+    chr="chr12"
+  }
+  if(i==13) { 
+    genome = readVCF("chr13.vcf.gz",10000,"chr13",1,13701538, include.unknown=TRUE)
+    end_pos=13701538
+    chr="chr13"
+  }
+  if(i==14) { 
+    genome = readVCF("chr14.vcf.gz",10000,"chr14",1,16289426, include.unknown=TRUE)
+    end_pos=16289426
+    chr="chr14"
+  }
+  if(i==15) { 
+    genome = readVCF("chr15.vcf.gz",10000,"chr15",1,12861315, include.unknown=TRUE)
+    end_pos=12861315
+    chr="chr15"
+  }
+  if(i==16) { 
+    genome = readVCF("chr16.vcf.gz",10000,"chr16",1,13368403, include.unknown=TRUE)
+    end_pos=13368403
+    chr="chr16"
+  }
+  if(i==17) { 
+    genome = readVCF("chr17.vcf.gz",10000,"chr17",1,17528992, include.unknown=TRUE)
+    end_pos=17528992
+    chr="chr17"
+  }
+  if(i==18) { 
+    genome = readVCF("chr18.vcf.gz",10000,"chr18",1,13464956, include.unknown=TRUE)
+    end_pos=13464956
+    chr="chr18"
+  }
+  if(i==19) { 
+    genome = readVCF("chr19.vcf.gz",10000,"chr19",1,16374649, include.unknown=TRUE)
+    end_pos=16374649
+    chr="chr19"
+  }
+  
+	# Define the populations
+	Latvia=c("LV_JEL11","LV_JEL12","LV_JEL13","LV_JEL14","LV_JEL16","LV_JEL17","LV_JEL18","LV_JEL19","LV_JEL20","LV_LIE31","LV_LIE32","LV_LIE33","LV_LIE34","LV_LIE35","LV_LIE36","LV_LIE37","LV_LIE38","LV_LIE39","LV_SAL21","LV_SAL22","LV_SAL23","LV_SAL24","LV_SAL25","LV_SAL26","LV_SAL27","LV_SAL28","LV_SAL29","LV_SAL30","LV_VEN41","LV_VEN42","LV_VEN43","LV_VEN44","LV_VEN45","LV_VEN46","LV_VEN47","LV_VEN48","LV_VEN49","LV_VIL01","LV_VIL04","LV_VIL05","LV_VIL06","LV_VIL07","LV_VIL08","LV_VIL09","LV_VIL10")
+
+	####
+	NoNorth=c("NO_MIR01","NO_MIR02","NO_MIR03","NO_MIR04","NO_MIR05","NO_MIR06","NO_MIR07","NO_MIR09","NO_MIR10","NO_MIR11","NO_MIR12","NO_MIR13","NO_MIR15","NO_MIR16","NO_MIR17","NO_MIR18","NO_MIR19","NO_MIR20","NO_MIR21","NO_MIR22","NO_MIR23","NO_MIR24")
+	NoSouth=c("NO_ALE01","NO_ALE02","NO_ALE03","NO_ALE04","NO_ALE05","NO_ALE06","NO_ALE07","NO_ALE08","NO_ALE09","NO_ALE10","NO_ALE11","NO_ALE12","NO_ALE13","NO_ALE14","NO_ALE15","NO_ALE17","NO_ALE18","NO_ALE19","NO_ALE20","NO_ALE21","NO_ALE22","NO_ALE23","NO_ALE24","NO_STV01","NO_STV02","NO_STV03","NO_STV04","NO_STV05","NO_STV06","NO_STV07","NO_STV08","NO_STV09","NO_STV11","NO_STV12","NO_STV13","NO_STV14","NO_STV15","NO_STV16","NO_STV17","NO_STV18","NO_STV19","NO_STV20","NO_STV21","NO_STV22","NO_STV23","NO_STV24")
+
+	###
+	Russia=c("RU_SYK01","RU_SYK02","RU_SYK03","RU_SYK04","RU_SYK05","RU_SYK06","RU_SYK07","RU_SYK08","RU_SYK09","RU_SYK10","RU_SYK11","RU_SYK12","RU_SYK13","RU_SYK14","RU_SYK15","RU_SYK17","RU_SYK18","RU_SYK19","RU_SYK20","RU_SYK21","RU_SYK22","RU_SYK23","RU_SYK24")
+
+	###
+	SwSouth=c("SWASP_001","SWASP_002","SWASP_003","SWASP_004","SWASP_005","SWASP_006","SWASP_007","SWASP_008","SWASP_009","SWASP_010","SWASP_011","SWASP_012","SWASP_013","SWASP_014","SWASP_015","SWASP_016","SWASP_019","SWASP_020","SWASP_021","SWASP_022","SWASP_023","SWASP_024","SWASP_025","SWASP_026","SWASP_027","SWASP_030","SWASP_031","SWASP_032","SWASP_033","SWASP_036","SWASP_038","SWASP_040","SWASP_041","SWASP_042","SWASP_043","SWASP_045","SWASP_046","SWASP_047","SWASP_048","SWASP_050","SWASP_051","SWASP_052","SWASP_053","SWASP_054","SWASP_055","SWASP_056","SWASP_057","SWASP_058","SWASP_059","SWASP_060")
+	SwNorth=c("SWASP_081","SWASP_082","SWASP_083","SWASP_084","SWASP_085","SWASP_086","SWASP_087","SWASP_088","SWASP_089","SWASP_090","SWASP_091","SWASP_092","SWASP_093","SWASP_095","SWASP_096","SWASP_097","SWASP_098","SWASP_099","SWASP_100","SWASP_101","SWASP_102","SWASP_103","SWASP_104","SWASP_105","SWASP_106","SWASP_107","SWASP_108","SWASP_109","SWASP_111","SWASP_112","SWASP_113","SWASP_114","SWASP_115","SWASP_116")
+
+	####
+
+	Scandinavia=c("SWASP_081","SWASP_082","SWASP_083","SWASP_084","SWASP_085","SWASP_086","SWASP_087","SWASP_088","SWASP_089","SWASP_090","SWASP_091","SWASP_092","SWASP_093","SWASP_095","SWASP_096","SWASP_097","SWASP_098","SWASP_099","SWASP_100","SWASP_101","SWASP_102","SWASP_103","SWASP_104","SWASP_105","SWASP_106","SWASP_107","SWASP_108","SWASP_109","SWASP_111","SWASP_112","SWASP_113","SWASP_114","SWASP_115","SWASP_116","NO_MIR01","NO_MIR02","NO_MIR03","NO_MIR04","NO_MIR05","NO_MIR06","NO_MIR07","NO_MIR09","NO_MIR10","NO_MIR11","NO_MIR12","NO_MIR13","NO_MIR15","NO_MIR16","NO_MIR17","NO_MIR18","NO_MIR19","NO_MIR20","NO_MIR21","NO_MIR22","NO_MIR23","NO_MIR24")
+
+	ScandSouth=c("SWASP_001","SWASP_002","SWASP_003","SWASP_004","SWASP_005","SWASP_006","SWASP_007","SWASP_008","SWASP_009","SWASP_010","SWASP_011","SWASP_012","SWASP_013","SWASP_014","SWASP_015","SWASP_016","SWASP_019","SWASP_020","SWASP_021","SWASP_022","SWASP_023","SWASP_024","SWASP_025","SWASP_026","SWASP_027","SWASP_030","SWASP_031","SWASP_032","SWASP_033","SWASP_036","SWASP_038","SWASP_040","SWASP_041","SWASP_042","SWASP_043","SWASP_045","SWASP_046","SWASP_047","SWASP_048","SWASP_050","SWASP_051","SWASP_052","SWASP_053","SWASP_054","SWASP_055","SWASP_056","SWASP_057","SWASP_058","SWASP_059","SWASP_060","NO_ALE01","NO_ALE02","NO_ALE03","NO_ALE04","NO_ALE05","NO_ALE06","NO_ALE07","NO_ALE08","NO_ALE09","NO_ALE10","NO_ALE11","NO_ALE12","NO_ALE13","NO_ALE14","NO_ALE15","NO_ALE17","NO_ALE18","NO_ALE19","NO_ALE20","NO_ALE21","NO_ALE22","NO_ALE23","NO_ALE24","NO_STV01","NO_STV02","NO_STV03","NO_STV04","NO_STV05","NO_STV06","NO_STV07","NO_STV08","NO_STV09","NO_STV11","NO_STV12","NO_STV13","NO_STV14","NO_STV15","NO_STV16","NO_STV17","NO_STV18","NO_STV19","NO_STV20","NO_STV21","NO_STV22","NO_STV23","NO_STV24")
+
+	#### Define the outgroup
+	China= c("CH_ptma45","CH_ptma48","CH_ptma50","CH_ptma52","CH_ptma53","CH_ptma55","CH_ptma56","CH_ptma57","CH_ptma58","CH_ptma59","CH_ptma62","CH_ptma67","CH_ptma68","CH_ptma70","CH_ptma71")
+
+	# define P1, P2 and P3; n= number of combinations of donor and receptor populations
+
+	# Set the populations
+
+  	genome = set.populations(genome,list(P1,P2,P3),diploid=TRUE) 
+  	file="P1_P2_P3"
+  
+	# Set the outgroup
+	  genome = set.outgroup(genome, China, diploid=TRUE)
+	# Split the data into 10kb windows within the inversion
+	  slide =sliding.window.transform(genome,jump=10000,width=10000,start.pos=1, end.pos=end_pos, type=2)
+	# Perform the introgression statistics
+	  slide = introgression.stats(slide, l.smooth=TRUE)
+	# weighted jackknife
+	  slide = weighted.jackknife(slide, per.region=FALSE)
+
+	# Get the genomic positions
+  	genome.pos = sapply(slide@region.names,function(x){
+   		split = strsplit(x," ")[[1]][c(1,3)]
+   		val = mean(as.numeric(split))
+   		return(val)
+  	})
+
+
+  slideCHR = slide
+  genome.posCHR = genome.pos
+  BDF_CHR <-slideCHR@df
+ 
+   write.table(as.numeric(BDF_CHR), file=paste("chr",i,"_10Kbdf_",file,".txt", sep=""), quote=F, row.names = F, col.names = F)
+
+}
+
+
+##########################################################################################
+##########################################################################################
+### ELAI
+
+/software/elai/elai-lin -g chrN_latvia.recode.geno.txt -p 10 -g chrN_russia.recode.geno.txt -p 11 \
+	-g chrN_swnorth.recode.geno.txt -p 1 -pos chrN_russia.recode.pos.txt -s 20 \
+	-o $prefix -C 2 -c 10 -mg 100 -exclude-maf 0.01 --exclude-miss 0.05 --exclude-nopos
+	
+	
+	
+	
+

@@ -1,0 +1,129 @@
+##########################################################################################
+##########################################################################################
+
+# Selection scans: iSAFE & Betascan
+
+##########################################################################################
+##########################################################################################
+#### Positive selection scans with iSAFE
+
+chr=$1
+case=$2
+suff=$3
+control=$4
+
+## Reference: P. tremula 
+#ref="/path/to/reference.fasta"
+
+
+##without control samples
+perl run_iSAFE.pl -s $chr -r $ref -w 3000000 -o $suff -C $case
+
+##with control samples: Sweden & Norway North vs South
+perl run_iSAFE.pl -s $chr -r $ref -w 3000000 -o $suff -C $case -c $control
+
+##########################################################################################
+##########################################################################################
+##### perl script: run_isafe.pl
+
+#/usr/local/bin/perl -W
+# iSAFE on sliding windows
+
+
+#use strict;
+use Getopt::Std;
+
+#Declaracion de variables
+my ($number,$line, $outfile, $id, $fna, $length);
+
+###########
+
+my (%opts);
+        getopts('s:r:w:o:s:C:c:v:', \%opts);
+
+        if ( scalar ( keys (%opts) ) ==0 ) {
+                print "usage: iSAFE.pl [options]\n";
+                print "   -s \t scaffold\n";
+				print "   -r \t reference fasta file\n";
+                print "   -w \t window size\n";
+                print "   -o \t outfile suffix\n";
+				print "   -C \t case samples\n";
+				print "   -c \t control samples\n\n";
+                print "   -v \t phased vcf file\n\n";
+		exit;
+        }
+                
+        my $chr = $opts{s};
+	    my $ref = $opts{r};
+        my $win_len = $opts{w};
+        my $suffix = $opts{o};
+        my $case = $opts{C}; 
+	    my $control =  $opts{c};
+        my $vcf = $opts{v};
+        if (!$case) { die "case is needed!!\n\n";	}
+                     
+###########
+
+
+$phasedPATH="/path/to/phased/files/";
+
+open (FILE, "chr_len.txt");
+
+while (<FILE>){ 
+	chomp($_);
+	$_=~/(\w+\d+)\t(\d+)/; $scaffold=$1; $len=$2;
+	if($chr eq $scaffold){ $length=$len;}
+}
+close(FILE);
+
+	if(!$vcf) { $vcf=$phasedPATH.$chr.".phased.recode.vcf.gz";}
+	else { $tmp=$phasedPATH.$vcf; $vcf=$tmp;}
+	if($length > 3000000) {
+		$windows=int($length/$win_len)+1; $step=$win_len;
+	} else {$windows=1; $step=$length;} 
+	$pos_start=$pos_end=0;	
+	$start=1;
+	for($i=1; $i<=$windows; $i++){
+		$pos_start=$start;
+		$pos_end=$start+$step-1;
+		$outfile=$chr."_window_".$i."_".$suffix;
+		$region=$chr.":".$pos_start."-".$pos_end;
+		print "$chr\t$length\t$windows\t$pos_start\t$pos_end\t$outfile\n";
+		
+		if (!$control) { system("python /tools/iSAFE/iSAFE-master/src/isafe.py --format vcf --input $vcf --output $outfile --AA $ref --region $region --sample-case $case --IgnoreGaps"); }
+                
+		else { system("python /tools/iSAFE/iSAFE-master/src/isafe.py --format vcf --input $vcf --output $outfile --AA $ref --region $region --sample-case $case --sample-cont $control --vcf-cont $vcf --IgnoreGaps"); }
+		$start+=$step;
+	}
+
+##########################################################################################
+##########################################################################################
+
+### balancing selection: betascan
+
+module load bioinfo-tools
+module load bcftools
+module load tabix
+module load vcftools
+
+
+cases=$1  #subpopulation name
+chr=$2
+vcf="/path/to/vcfs/${chr}_IBD_ExHetFDR_ABR.recode.vcf.gz"
+
+### prepare vcf file for betascan:
+vcftools --gzvcf $vcf --keep ${cases}.keep --chr $chr --out ${cases}_${chr} --max-missing 1 --recode-INFO MQ --recode-INFO MQRankSum --recode-INFO ReadPosRankSum --recode-INFO SOR --recode-INFO QD --recode
+bgzip ${cases}_${chr}.recode.vcf
+
+### re-calculate flags for each subpopulation
+bcftools +fill-tags ${cases}_${chr}.recode.vcf.gz -Oz -o ${cases}_${chr}.tagged.vcf.gz
+bcftools filter -e 'AC[0]=0 & MAF[0]=0' -Oz -o ${cases}_${chr}.vcf.gz ${cases}_${chr}.tagged.vcf.gz 
+
+rm ${cases}_${chr}.tagged.vcf.gz
+rm ${cases}_${chr}.recode.vcf.gz
+
+/software/grenaud-glactools-9d3e410/glactools vcfm2acf --onlyGT --fai /reference/Potra02_Pseudomolecules.fa.fai ${cases}_${chr}.vcf.gz > ${cases}_${chr}.acf.gz
+
+/software/grenaud-glactools-9d3e410/glactools acf2betascan --fold ${cases}_${chr}.acf.gz | gzip > ${cases}_${chr}.beta.txt.gz
+
+python /software/BetaScan-master/BetaScan.py -i ${cases}_${chr}.beta.txt.gz -fold -m 0.1 -o ${cases}_${chr}.Pdefault_m01.betascores.txt
